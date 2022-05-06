@@ -18,6 +18,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -28,8 +29,8 @@ type WelcomeSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	Name string `json:"foo,omitempty"`
+	//Foo string `json:"foo,omitempty"`
 	// Foo is an example field of Welcome. Edit welcome_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
 }
 
 // WelcomeStatus defines the observed state of Welcome
@@ -41,6 +42,12 @@ type WelcomeStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
+//+kubebuilder:rbac:groups=webapp.demo.welcome.domain,resources=welcomes,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=webapp.demo.welcome.domain,resources=welcomes/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=webapp.demo.welcome.domain,resources=welcomes/finalizers,verbs=update
+//+kubebuilder:rbac:groups=apps,resources=deployment,verbs=get;update;patch;watch;list;delete;create
+//+kubebuilder:rbac:groups=apps,resources=services,verbs=get;update;patch;watch;list;delete;create
+
 // Welcome is the Schema for the welcomes API
 type Welcome struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -48,6 +55,14 @@ type Welcome struct {
 
 	Spec   WelcomeSpec   `json:"spec,omitempty"`
 	Status WelcomeStatus `json:"status,omitempty"`
+}
+
+func (in *Welcome) DeepCopyObject() runtime.Object {
+	//panic("implement me")
+	if c := in.DeepCopy(); c != nil {
+		return c
+	}
+	return nil
 }
 
 //+kubebuilder:object:root=true
