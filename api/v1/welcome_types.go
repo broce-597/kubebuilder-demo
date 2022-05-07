@@ -28,7 +28,7 @@ import (
 type WelcomeSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	Name string `json:"foo,omitempty"`
+	Name string `json:"name,omitempty"`
 	//Foo string `json:"foo,omitempty"`
 	// Foo is an example field of Welcome. Edit welcome_types.go to remove/update
 }

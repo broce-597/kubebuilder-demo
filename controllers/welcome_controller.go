@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -25,6 +26,7 @@ import (
 	matev1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"runtime/debug"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -56,7 +58,8 @@ func (r *WelcomeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	_ = log.FromContext(ctx)
 
 	// your logic here
-
+	fmt.Println(fmt.Sprintf("1,%v", req))
+	fmt.Println(fmt.Sprintf("2,%s", debug.Stack()))
 	// 实例化数据结构
 	instance := &webappv1.Welcome{}
 
@@ -106,7 +109,13 @@ func (r *WelcomeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// 通过客户端更新deployment
-	if err = r.Update(ctx, deployment); err != nil {
+	//if err = r.Update(ctx, deployment); err != nil {
+	//	// 返回错误信息给外部
+	//	return ctrl.Result{}, err
+	//}
+	//判断字段是否更新
+
+	if err = updateWelcomeDeployment(ctx, instance, r); err != nil {
 		// 返回错误信息给外部
 		return ctrl.Result{}, err
 	}
@@ -124,9 +133,6 @@ func (r *WelcomeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 func createWelcomeDeployment(ctx context.Context, welcome *webappv1.Welcome, r *WelcomeReconciler) error {
 	defOne := int32(1)
 	name := welcome.Spec.Name
-	if name == "" {
-		name = "world"
-	}
 	dep1 := &appsv1.Deployment{
 		TypeMeta: matev1.TypeMeta{
 			APIVersion: appsv1.SchemeGroupVersion.String(), Kind: "Deloyment"},
@@ -136,27 +142,28 @@ func createWelcomeDeployment(ctx context.Context, welcome *webappv1.Welcome, r *
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &defOne,
 			Selector: &matev1.LabelSelector{
-				MatchLabels: map[string]string{"welcome": welcome.Name},
+				MatchLabels: map[string]string{"app": welcome.Name},
 			},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: matev1.ObjectMeta{
-					Labels: map[string]string{"welcome": welcome.Name},
+					Labels: map[string]string{"app": welcome.Name},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
 							Name: "welcome",
 							Env: []corev1.EnvVar{
-								{Name: "NAME", Value: name},
+								{Name: "AUTH_NAME", Value: name},
 							},
 							Ports: []corev1.ContainerPort{
 								{ContainerPort: 8080, Name: "http-welcome"},
 							},
-							Image: "sdfcdwefe/operatordemo;v1",
+							Image:           "registry.cn-hangzhou.aliyuncs.com/broce_597/welcome:1.0.0",
+							ImagePullPolicy: "Always",
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceCPU:    *resource.NewQuantity(100, resource.DecimalSI),
-									corev1.ResourceMemory: *resource.NewQuantity(500, resource.BinarySI),
+									corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewMilliQuantity(500, resource.BinarySI),
 								},
 							},
 						},
@@ -173,6 +180,61 @@ func createWelcomeDeployment(ctx context.Context, welcome *webappv1.Welcome, r *
 
 	// 创建deployment
 	if err := r.Create(ctx, dep1); err != nil {
+		return err
+	}
+	return nil
+}
+
+func updateWelcomeDeployment(ctx context.Context, welcome *webappv1.Welcome, r *WelcomeReconciler) error {
+	defOne := int32(1)
+	name := welcome.Spec.Name
+	dep1 := &appsv1.Deployment{
+		TypeMeta: matev1.TypeMeta{
+			APIVersion: appsv1.SchemeGroupVersion.String(), Kind: "Deloyment"},
+		ObjectMeta: matev1.ObjectMeta{
+			Name:      welcome.Name,
+			Namespace: welcome.Namespace},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &defOne,
+			Selector: &matev1.LabelSelector{
+				MatchLabels: map[string]string{"app": welcome.Name},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: matev1.ObjectMeta{
+					Labels: map[string]string{"app": welcome.Name},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name: "welcome",
+							Env: []corev1.EnvVar{
+								{Name: "AUTH_NAME", Value: name},
+							},
+							Ports: []corev1.ContainerPort{
+								{ContainerPort: 8080, Name: "http-welcome"},
+							},
+							Image:           "registry.cn-hangzhou.aliyuncs.com/broce_597/welcome:1.0.0",
+							ImagePullPolicy: "Always",
+							Resources: corev1.ResourceRequirements{
+								Requests: corev1.ResourceList{
+									corev1.ResourceCPU:    *resource.NewMilliQuantity(100, resource.DecimalSI),
+									corev1.ResourceMemory: *resource.NewMilliQuantity(500, resource.BinarySI),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	// 这一步非常关键！
+	// 建立关联后，删除资源时就会将deployment也删除掉
+	if err := controllerutil.SetControllerReference(welcome, dep1, r.Scheme); err != nil {
+		return err
+	}
+
+	// 创建deployment
+	if err := r.Update(ctx, dep1); err != nil {
 		return err
 	}
 	return nil
@@ -204,10 +266,10 @@ func createService(ctx context.Context, welcome *webappv1.Welcome, r *WelcomeRec
 				Name:       "http-welcome",
 				Port:       8080,
 				Protocol:   "TCP",
-				TargetPort: intstr.FromString("http"),
+				TargetPort: intstr.FromString("http-welcome"),
 			},
 		},
-			Selector: map[string]string{"welcome": welcome.Name},
+			Selector: map[string]string{"app": welcome.Name},
 			Type:     corev1.ServiceTypeClusterIP,
 		},
 	}

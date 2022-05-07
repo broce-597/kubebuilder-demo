@@ -4,4 +4,4 @@ metadata:
   name: welcome-sample
 spec:
   # Add fields here
-  foo: broce
+  name: aaa
